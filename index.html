@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>香港巴士站地圖</title>
+    <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Huninn', sans-serif;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+        }
+
+        #map {
+            height: 100vh;
+            width: 100vw;
+            z-index: 1;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            font-family: 'Huninn', sans-serif;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loading-text {
+            font-size: 20px;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .progress-bar {
+            width: 320px;
+            height: 24px;
+            border: 2px solid #333;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #f0f0f0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #4CAF50;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .status-text {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .leaflet-popup-content-wrapper {
+            font-family: 'Huninn', sans-serif;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .leaflet-popup-content {
+            font-family: 'Huninn', sans-serif;
+            margin: 12px 16px;
+            line-height: 1.7;
+            min-width: 200px;
+        }
+
+        .popup-title {
+            font-size: 17px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #222;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 6px;
+        }
+
+        .popup-row {
+            font-size: 14px;
+            margin: 5px 0;
+            color: #444;
+        }
+
+        .popup-label {
+            font-weight: bold;
+            color: #222;
+        }
+
+        .popup-routes {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+        }
+
+        .route-tag {
+            display: inline-block;
+            padding: 3px 10px;
+            margin: 3px 4px 3px 0;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .route-tag.ctb { background: #e8f5e9; color: #388e3c; }
+        .route-tag.kmb { background: #fce4ec; color: #c2185b; }
+        .route-tag.lwb { background: #fff3e0; color: #f57c00; }
+        .route-tag.nlb { background: #e1f5fe; color: #0288d1; }
+        .route-tag.pi { background: #f3e5f5; color: #7b1fa2; }
+        .route-tag.xb { background: #e0f2f1; color: #00695c; }
+        .route-tag.lrtfeeder { background: #fff8e1; color: #ff8f00; }
+        .route-tag.db { background: #efebe9; color: #5d4037; }
+
+        .company-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+            margin-left: 5px;
+        }
+
+        .company-badge.ctb { background: #388e3c; }
+        .company-badge.kmb { background: #c2185b; }
+        .company-badge.lwb { background: #f57c00; }
+        .company-badge.nlb { background: #0288d1; }
+        .company-badge.pi { background: #7b1fa2; }
+        .company-badge.xb { background: #00695c; }
+        .company-badge.lrtfeeder { background: #ff8f00; }
+        .company-badge.db { background: #5d4037; }
+
+        .legend {
+            position: fixed;
+            bottom: 30px;
+            right: 10px;
+            background: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+            z-index: 500;
+            font-family: 'Huninn', sans-serif;
+            font-size: 13px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .legend-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+
+        .legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            margin-right: 10px;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .legend-color.ctb { background: #388e3c; }
+        .legend-color.kmb { background: #c2185b; }
+        .legend-color.lwb { background: #f57c00; }
+        .legend-color.nlb { background: #0288d1; }
+        .legend-color.pi { background: #7b1fa2; }
+        .legend-color.xb { background: #00695c; }
+        .legend-color.lrtfeeder { background: #ff8f00; }
+        .legend-color.db { background: #5d4037; }
+
+        .error-message {
+            color: #d32f2f;
+            font-size: 14px;
+            text-align: center;
+            margin-top: 20px;
+            padding: 0 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div class="loading-overlay" id="loading">
+        <div class="loading-text">正在載入香港巴士站資料...</div>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="status-text" id="statusText">準備中</div>
+    </div>
+
+    <div class="legend" id="legend">
+        <div class="legend-title">圖例</div>
+        <div class="legend-item"><div class="legend-color kmb"></div><span>九巴 (KMB)</span></div>
+        <div class="legend-item"><div class="legend-color lwb"></div><span>龍運 (LWB)</span></div>
+        <div class="legend-item"><div class="legend-color ctb"></div><span>城巴 (CTB)</span></div>
+        <!-- <div class="legend-item"><div class="legend-color nlb"></div><span>嶼巴 (NLB)</span></div>
+        <div class="legend-item"><div class="legend-color pi"></div><span>珀麗巴士 (PI)</span></div>
+        <div class="legend-item"><div class="legend-color xb"></div><span>愉景灣 (DB)</span></div>
+        <div class="legend-item"><div class="legend-color lrtfeeder"></div><span>輕鐵接駁 (LRTFeeder)</span></div> -->
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const map = L.map('map', {
+            center: [22.3193, 114.1694],
+            zoom: 11,
+            zoomControl: true,
+            attributionControl: true
+        });
+
+        L.tileLayer('https://mapapi.geodata.gov.hk/gs/api/v1.0.0/xyz/basemap/WGS84/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://api.portal.hkmapservice.gov.hk/disclaimer" target="_blank">The Government of the Hong Kong SAR</a> | Map from Lands Department',
+            maxZoom: 20
+        }).addTo(map);
+
+        L.tileLayer('https://mapapi.geodata.gov.hk/gs/api/v1.0.0/xyz/label/hk/tc/WGS84/{z}/{x}/{y}.png', {
+            maxZoom: 20
+        }).addTo(map);
+
+        const progressFill = document.getElementById('progressFill');
+        const statusText = document.getElementById('statusText');
+        const loadingOverlay = document.getElementById('loading');
+
+        function updateProgress(percent, text) {
+            progressFill.style.width = percent + '%';
+            statusText.textContent = text;
+        }
+
+        function getPrimaryCompany(companiesObj) {
+            if (!companiesObj || typeof companiesObj !== 'object') return 'kmb';
+            const keys = Object.keys(companiesObj);
+            const priority = ['CTB', 'KMB', 'LWB', 'NLB', 'PI', 'XB', 'LRTFeeder', 'DB'];
+            for (const p of priority) {
+                if (keys.includes(p)) return p.toLowerCase();
+            }
+            return keys[0].toLowerCase();
+        }
+
+        function getCompanyClass(companyCode) {
+            const valid = ['ctb', 'kmb', 'lwb', 'nlb', 'pi', 'xb', 'lrtfeeder', 'db'];
+            const lower = (companyCode || '').toLowerCase();
+            return valid.includes(lower) ? lower : 'kmb';
+        }
+
+        function createPopupContent(stop) {
+            const stops = stop.stops || [stop];
+            
+            let html = '';
+            if (stops.length > 1) {
+                html += `<div class="popup-title">多個巴士站 (${stops.length}個)</div>`;
+            } else {
+                html += `<div class="popup-title">${stop.name}</div>`;
+            }
+            
+            stops.forEach((s, index) => {
+                const companies = s.companies || {};
+                const companyKeys = Object.keys(companies);
+                
+                if (stops.length > 1) {
+                    html += `<div style="margin-top:8px; padding-top:8px; border-top:1px dashed #ddd;">`;
+                    html += `<div class="popup-title" style="font-size:15px; margin-bottom:4px;">${s.name}</div>`;
+                    html += `<div class="popup-row"><span class="popup-label">stop_id:</span> ${s.stop_id}</div>`;
+                } else {
+                    html += `<div class="popup-row"><span class="popup-label">stop_id:</span> ${s.stop_id}</div>`;
+                }
+                
+                companyKeys.forEach(co => {
+                    const routes = companies[co] || [];
+                    html += `<div class="popup-row" style="margin-top:4px;"><span class="popup-label">巴士公司:</span> <span class="company-badge ${getCompanyClass(co)}">${co}</span></div>`;
+                    if (routes.length > 0) {
+                        html += `<div class="popup-routes">`;
+                        routes.forEach(route => {
+                            html += `<span class="route-tag ${getCompanyClass(co)}">${route}</span>`;
+                        });
+                        html += `</div>`;
+                    }
+                });
+                
+                if (stops.length > 1) {
+                    html += `</div>`;
+                }
+            });
+
+            return html;
+        }
+
+        async function loadStops() {
+            try {
+                updateProgress(10, '載入巴士站資料...');
+                
+                const response = await fetch('bus_stops.json');
+                if (!response.ok) {
+                    throw new Error('無法載入 bus_stops.json');
+                }
+                
+                const stops = await response.json();
+                updateProgress(40, `處理 ${stops.length} 個巴士站...`);
+
+                const canvasRenderer = L.canvas({ padding: 0.5 });
+                const markers = [];
+                
+                const batchSize = 500;
+                for (let i = 0; i < stops.length; i += batchSize) {
+                    const batch = stops.slice(i, i + batchSize);
+                    batch.forEach(stop => {
+                        const lat = parseFloat(stop.lat);
+                        const lng = parseFloat(stop.lng);
+                        if (isNaN(lat) || isNaN(lng)) return;
+                        
+                        const companyClass = getPrimaryCompany(stop.companies);
+                        const colors = {
+                            kmb: '#c2185b',
+                            lwb: '#f57c00',
+                            ctb: '#388e3c',
+                            nlb: '#0288d1',
+                            pi: '#7b1fa2',
+                            xb: '#00695c',
+                            lrtfeeder: '#ff8f00',
+                            db: '#5d4037'
+                        };
+                        const color = colors[companyClass] || '#666';
+                        const isGrouped = stop.stops && stop.stops.length > 1;
+                        const radius = isGrouped ? 7 : 4;
+
+                        const marker = L.circleMarker([lat, lng], {
+                            radius: radius,
+                            fillColor: color,
+                            color: '#fff',
+                            weight: isGrouped ? 2 : 1,
+                            opacity: 1,
+                            fillOpacity: isGrouped ? 0.9 : 0.85,
+                            renderer: canvasRenderer
+                        }).addTo(map);
+
+                        marker.bindPopup(createPopupContent(stop), {
+                            maxWidth: 350,
+                            className: 'bus-stop-popup'
+                        });
+
+                        markers.push(marker);
+                    });
+                    
+                    const percent = 40 + (i / stops.length) * 50;
+                    updateProgress(percent, `載入地圖標記: ${Math.min(i + batchSize, stops.length)} / ${stops.length}`);
+                    
+                    if (i % (batchSize * 2) === 0) {
+                        await new Promise(r => setTimeout(r, 0));
+                    }
+                }
+
+                updateProgress(95, '完成！');
+                
+                setTimeout(() => {
+                    loadingOverlay.classList.add('hidden');
+                    setTimeout(() => {
+                        loadingOverlay.style.display = 'none';
+                    }, 500);
+                }, 300);
+
+            } catch (error) {
+                console.error('Error loading stops:', error);
+                statusText.innerHTML = `<span class="error-message">載入失敗: ${error.message}<br/>請確認 bus_stops.json 存在於同一目錄</span>`;
+            }
+        }
+
+        loadStops();
+    </script>
+</body>
+</html>
