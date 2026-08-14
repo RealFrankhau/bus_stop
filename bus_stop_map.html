@@ -86,8 +86,6 @@
             margin: 12px 16px;
             line-height: 1.7;
             min-width: 200px;
-            max-height: 400px;
-            overflow-y: auto;
         }
 
         .popup-title {
@@ -116,35 +114,10 @@
             border-top: 1px solid #eee;
         }
 
-        .route-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 4px 0;
-            border-bottom: 1px dashed #f0f0f0;
-        }
-
-        .route-row:last-child {
-            border-bottom: none;
-        }
-
-        .route-info {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .eta-info {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            margin-left: auto;
-            padding-left: 12px;
-        }
-
         .route-tag {
             display: inline-block;
             padding: 3px 10px;
+            margin: 3px 4px 3px 0;
             border-radius: 4px;
             font-size: 13px;
             font-weight: bold;
@@ -158,25 +131,6 @@
         .route-tag.xb { background: #e0f2f1; color: #00695c; }
         .route-tag.lrtfeeder { background: #fff8e1; color: #ff8f00; }
         .route-tag.db { background: #efebe9; color: #5d4037; }
-
-        .eta-tag {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 13px;
-            font-weight: bold;
-            background: #f5f5f5;
-            color: #000;
-            border: 1px solid #ddd;
-            min-width: 28px;
-            text-align: center;
-        }
-
-        .eta-tag.eta-empty {
-            background: #fafafa;
-            color: #999;
-            border: 1px dashed #ccc;
-        }
 
         .company-badge {
             display: inline-block;
@@ -249,21 +203,6 @@
             margin-top: 20px;
             padding: 0 20px;
         }
-
-        .popup-loading {
-            color: #666;
-            font-size: 13px;
-            text-align: center;
-            padding: 8px 0;
-            font-style: italic;
-        }
-
-        .popup-error {
-            color: #d32f2f;
-            font-size: 13px;
-            text-align: center;
-            padding: 8px 0;
-        }
     </style>
 </head>
 <body>
@@ -331,98 +270,8 @@
             return valid.includes(lower) ? lower : 'kmb';
         }
 
-        function getMinutesUntilETA(etaString) {
-            if (!etaString) return null;
-            const eta = new Date(etaString);
-            const now = new Date();
-            const diffMs = eta - now;
-            const diffMins = Math.round(diffMs / 60000);
-            return diffMins;
-        }
-
-        async function fetchStopETA(stop) {
+        function createPopupContent(stop) {
             const stops = stop.stops || [stop];
-            const etaByStop = {};
-            
-            for (const s of stops) {
-                const companies = s.companies || {};
-                const companyKeys = Object.keys(companies);
-                const routeEtaMap = {};
-                
-                for (const co of companyKeys) {
-                    const routes = companies[co] || [];
-                    const companyLower = co.toLowerCase();
-                    
-                    if (companyLower === 'kmb' || companyLower === 'lwb') {
-                        try {
-                            const url = `https://data.etabus.gov.hk/v1/transport/kmb/stop-eta/${s.stop_id}`;
-                            const response = await fetch(url);
-                            if (!response.ok) continue;
-                            const data = await response.json();
-                            const etaList = data.data || [];
-                            
-                            const routeGroups = {};
-                            etaList.forEach(item => {
-                                const route = item.route;
-                                if (!routeGroups[route]) routeGroups[route] = [];
-                                const mins = getMinutesUntilETA(item.eta);
-                                if (mins !== null && mins >= 0) {
-                                    routeGroups[route].push(mins);
-                                }
-                            });
-                            
-                            for (const route of routes) {
-                                if (routeGroups[route] && routeGroups[route].length > 0) {
-                                    routeEtaMap[route] = routeGroups[route].slice(0, 3);
-                                }
-                            }
-                        } catch (e) {
-                            console.error(`Error fetching KMB/LWB ETA for stop ${s.stop_id}:`, e);
-                        }
-                    } else if (companyLower === 'ctb') {
-                        const ctbEtaPromises = routes.map(async route => {
-                            try {
-                                const url = `https://rt.data.gov.hk/v2/transport/citybus/eta/ctb/${s.stop_id}/${route}`;
-                                const response = await fetch(url);
-                                if (!response.ok) return null;
-                                const data = await response.json();
-                                const etaList = data.data || [];
-                                
-                                const minsList = [];
-                                etaList.forEach(item => {
-                                    const mins = getMinutesUntilETA(item.eta);
-                                    if (mins !== null && mins >= 0) {
-                                        minsList.push(mins);
-                                    }
-                                });
-                                
-                                return minsList.length > 0 ? { route, minsList } : null;
-                            } catch (e) {
-                                console.error(`Error fetching CTB ETA for stop ${s.stop_id} route ${route}:`, e);
-                                return null;
-                            }
-                        });
-                        
-                        const ctbResults = await Promise.all(ctbEtaPromises);
-                        ctbResults.forEach(result => {
-                            if (result && result.minsList.length > 0) {
-                                routeEtaMap[result.route] = result.minsList.slice(0, 3);
-                            }
-                        });
-                    }
-                }
-                
-                if (Object.keys(routeEtaMap).length > 0) {
-                    etaByStop[s.stop_id] = routeEtaMap;
-                }
-            }
-            
-            return etaByStop;
-        }
-
-        function createPopupContent(stop, etaData) {
-            const stops = stop.stops || [stop];
-            const etaByStop = etaData || {};
             
             let html = '';
             if (stops.length > 1) {
@@ -434,7 +283,6 @@
             stops.forEach((s, index) => {
                 const companies = s.companies || {};
                 const companyKeys = Object.keys(companies);
-                const stopEta = etaByStop[s.stop_id] || {};
                 
                 if (stops.length > 1) {
                     html += `<div style="margin-top:8px; padding-top:8px; border-top:1px dashed #ddd;">`;
@@ -450,20 +298,7 @@
                     if (routes.length > 0) {
                         html += `<div class="popup-routes">`;
                         routes.forEach(route => {
-                            const routeEta = stopEta[route] || [];
-                            const etaMins = routeEta.slice(0, 3);
-                            html += `<div class="route-row">`;
-                            html += `  <div class="route-info"><span class="route-tag ${getCompanyClass(co)}">${route}</span></div>`;
-                            html += `  <div class="eta-info">`;
-                            if (etaMins.length > 0) {
-                                etaMins.forEach(m => {
-                                    html += `<span class="eta-tag">${m}</span>`;
-                                });
-                            } else {
-                                html += `<span class="eta-tag eta-empty">--</span>`;
-                            }
-                            html += `  </div>`;
-                            html += `</div>`;
+                            html += `<span class="route-tag ${getCompanyClass(co)}">${route}</span>`;
                         });
                         html += `</div>`;
                     }
@@ -528,18 +363,6 @@
                         marker.bindPopup(createPopupContent(stop), {
                             maxWidth: 350,
                             className: 'bus-stop-popup'
-                        });
-
-                        marker.on('popupopen', async () => {
-                            const popup = marker.getPopup();
-                            if (!popup) return;
-                            popup.setContent(createPopupContent(stop) + '<div class=\"popup-loading\">載入ETA中...</div>');
-                            try {
-                                const etaData = await fetchStopETA(stop);
-                                popup.setContent(createPopupContent(stop, etaData));
-                            } catch (e) {
-                                popup.setContent(createPopupContent(stop) + '<div class=\"popup-error\">無法載入ETA</div>');
-                            }
                         });
 
                         markers.push(marker);
