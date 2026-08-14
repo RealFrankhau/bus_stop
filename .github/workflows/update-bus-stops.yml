@@ -2,8 +2,9 @@ name: Update Bus Stops
 
 on:
   schedule:
-    - cron: '0 0 1 1,4,7,10 *'
-  workflow_dispatch:
+    # 每月 1 日 00:00 UTC 執行
+    - cron: '0 0 1 * *'
+  workflow_dispatch:  # 允許手動觸發
 
 jobs:
   update-stops:
