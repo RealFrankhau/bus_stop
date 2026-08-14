@@ -4,14 +4,16 @@
 
 ## 功能特色
 
-- 顯示全港 **9,330+** 個巴士站位置（KMB、CTB、LWB）
+- 顯示全港 **8,444** 個巴士站位置（KMB、CTB、LWB），覆蓋 **9,330** 個官方站點
 - 使用政府官方地圖圖層（地政處地圖 + 中文標籤）
 - 按一下巴士站顯示詳細資料：
+  - 站名
   - 站號（stop_id，使用各巴士公司 API 本身的站號格式）
-  - 巴士站名
   - 所屬巴士公司（KMB / CTB / LWB）
   - 所有途經該站的巴士路線
+  - **即時到站時間（ETA）**：每條路線最多顯示 3 個到站分鐘數
 - 同一 GPS 位置有多個巴士站時，合併顯示並以較大圓點標示
+- 路線號碼與 ETA 分行顯示，路線在左、ETA 在右，清晰易讀
 - 全頁使用 Huninn 字型
 - 載入進度指示器
 
@@ -34,6 +36,10 @@
 - KMB/LWB：https://data.etabus.gov.hk/v1/transport/kmb/route-stop
 - CTB：https://rt.data.gov.hk/v2/transport/citybus/route-stop/ctb/{route}/{direction}
 
+即時到站時間（ETA）來源：
+- KMB/LWB：https://data.etabus.gov.hk/v1/transport/kmb/stop-eta/{stop_id}
+- CTB：https://rt.data.gov.hk/v2/transport/citybus/eta/ctb/{stop_id}/{route}
+
 ## 使用方法
 
 ### 基本使用
@@ -42,6 +48,7 @@
 2. 用瀏覽器開啟 `index.html`
 3. 等待巴士站資料載入完成
 4. 放大地圖並按一下圓點查看巴士站詳情
+5. Popup 會自動載入即時 ETA 到站時間
 
 > **注意**：由於瀏覽器 CORS 限制，直接開啟 `index.html` 時，`bus_stops.json` 需與 `index.html` 在同一目錄下。如果遇到載入問題，可使用本地伺服器：
 > ```bash
@@ -61,13 +68,13 @@ python build_stops.py
 
 ## 自動更新（GitHub Actions）
 
-Repository 已包含 GitHub Actions workflow，可每 3 個月自動更新一次。
+Repository 已包含 GitHub Actions workflow，可每個月自動更新一次。
 
 ### 設定步驟
 
 1. 將此 repository 推到 GitHub
 2. GitHub Actions 會根據 `.github/workflows/` 內的設定自動執行
-3. 執行時間：每年 1 月、4 月、7 月、10 月的第一天（UTC 時間 00:00）
+3. 執行時間：每月 1 日（UTC 時間 00:00）
 4. 如有資料變更，會自動 commit 並 push
 
 ### 手動觸發更新
@@ -91,10 +98,25 @@ Repository 已包含 GitHub Actions workflow，可每 3 個月自動更新一次
 ## 資料統計
 
 - 總巴士站數：9,330
+- 顯示位置數：8,444（同 GPS 合併後）
 - KMB 站：6,136
 - LWB 站：869
 - CTB 站：2,574
 - 同一 GPS 位置有多個站的 location：699
+
+## 介面預覽
+
+### Popup 顯示內容
+- 站名
+- stop_id
+- 巴士公司 badge
+- 每條路線獨立一行，左邊顯示路線號碼，右邊顯示 ETA 分鐘數
+- 若沒有 ETA 資料，顯示 `--`
+
+### 圖例
+- 九巴（KMB）：粉紅色
+- 龍運（LWB）：橙色
+- 城巴（CTB）：綠色
 
 ## 免責聲明
 
