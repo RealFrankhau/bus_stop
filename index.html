@@ -264,6 +264,103 @@
             text-align: center;
             padding: 8px 0;
         }
+
+        /* === User location (GPS) === */
+        .locate-btn {
+            position: fixed;
+            bottom: 30px;
+            left: 10px;
+            width: 44px;
+            height: 44px;
+            background: #ffffff;
+            border: none;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+            z-index: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            transition: background 0.15s ease;
+            font-family: 'Huninn', sans-serif;
+        }
+
+        .locate-btn:hover {
+            background: #f5f5f5;
+        }
+
+        .locate-btn:active {
+            background: #e0e0e0;
+        }
+
+        .locate-btn.active {
+            background: #e3f2fd;
+        }
+
+        .locate-btn.active img {
+            filter: brightness(0) saturate(100%) invert(41%) sepia(93%) saturate(1847%) hue-rotate(196deg) brightness(95%) contrast(89%);
+        }
+
+        .locate-btn img {
+            width: 26px;
+            height: 26px;
+            display: block;
+            pointer-events: none;
+        }
+
+        .user-location-wrapper {
+            position: relative;
+            width: 22px;
+            height: 22px;
+            pointer-events: none;
+        }
+
+        .user-location-dot {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 14px;
+            height: 14px;
+            background: #1e88e5;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 4px rgba(0, 0, 0, 0.45);
+            z-index: 2;
+        }
+
+        .user-location-pulse {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 22px;
+            height: 22px;
+            background: rgba(30, 136, 229, 0.35);
+            border: 2px solid rgba(30, 136, 229, 0.6);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            animation: user-location-pulse 1.8s ease-out infinite;
+            z-index: 1;
+        }
+
+        @keyframes user-location-pulse {
+            0% {
+                transform: translate(-50%, -50%) scale(0.5);
+                opacity: 1;
+            }
+            80% {
+                opacity: 0.2;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(2.8);
+                opacity: 0;
+            }
+        }
+
+        .leaflet-control-attribution {
+            font-size: 10px;
+        }
     </style>
 </head>
 <body>
@@ -287,6 +384,10 @@
         <div class="legend-item"><div class="legend-color xb"></div><span>愉景灣 (DB)</span></div>
         <div class="legend-item"><div class="legend-color lrtfeeder"></div><span>輕鐵接駁 (LRTFeeder)</span></div> -->
     </div>
+
+    <button class="locate-btn" id="locateBtn" type="button" title="定位到我的位置" aria-label="定位到我的位置">
+        <img src="assets/location.svg" alt="" />
+    </button>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
@@ -569,6 +670,106 @@
         }
 
         loadStops();
+
+        // ===== User GPS Location =====
+        (function initGeolocation() {
+            const locateBtn = document.getElementById('locateBtn');
+            if (!locateBtn) return;
+
+            let userMarker = null;
+            let userAccuracyCircle = null;
+            let userLatLng = null;
+            let followingUser = false;
+            const geoSupported = 'geolocation' in navigator;
+
+            function createUserIcon() {
+                return L.divIcon({
+                    className: 'user-location-wrapper',
+                    html: '<div class="user-location-pulse"></div><div class="user-location-dot"></div>',
+                    iconSize: [22, 22],
+                    iconAnchor: [11, 11]
+                });
+            }
+
+            function applyUserLocation(latlng, accuracy) {
+                userLatLng = latlng;
+                const acc = (typeof accuracy === 'number' && accuracy > 0) ? accuracy : 30;
+                if (!userMarker) {
+                    userMarker = L.marker(latlng, {
+                        icon: createUserIcon(),
+                        interactive: false,
+                        keyboard: false
+                    }).addTo(map);
+                    userAccuracyCircle = L.circle(latlng, {
+                        radius: acc,
+                        color: '#1e88e5',
+                        weight: 1,
+                        fillColor: '#1e88e5',
+                        fillOpacity: 0.1,
+                        interactive: false
+                    }).addTo(map);
+                } else {
+                    userMarker.setLatLng(latlng);
+                    userAccuracyCircle.setLatLng(latlng);
+                    userAccuracyCircle.setRadius(acc);
+                }
+                if (followingUser) {
+                    map.setView(latlng, Math.max(map.getZoom(), 15));
+                }
+            }
+
+            function startFollowing() {
+                if (!userLatLng) return;
+                followingUser = true;
+                locateBtn.classList.add('active');
+                map.setView(userLatLng, Math.max(map.getZoom(), 15));
+            }
+
+            function stopFollowing() {
+                followingUser = false;
+                locateBtn.classList.remove('active');
+            }
+
+            function requestOneShot() {
+                if (!geoSupported) return;
+                navigator.geolocation.getCurrentPosition(
+                    pos => applyUserLocation([pos.coords.latitude, pos.coords.longitude], pos.coords.accuracy),
+                    err => console.warn('Geolocation one-shot error:', err),
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            }
+
+            locateBtn.addEventListener('click', () => {
+                if (!geoSupported) {
+                    console.warn('瀏覽器不支援 GPS 定位功能');
+                    return;
+                }
+                if (!userLatLng) {
+                    requestOneShot();
+                    return;
+                }
+                startFollowing();
+            });
+
+            // Stop following when the user pans/zooms manually
+            map.on('dragstart zoomstart', () => {
+                if (followingUser) stopFollowing();
+            });
+
+            // Try to obtain an initial fix; if denied/unavailable, silently fall back.
+            if (geoSupported) {
+                navigator.geolocation.getCurrentPosition(
+                    pos => applyUserLocation([pos.coords.latitude, pos.coords.longitude], pos.coords.accuracy),
+                    err => console.warn('Geolocation unavailable:', err && err.message),
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+                );
+                navigator.geolocation.watchPosition(
+                    pos => applyUserLocation([pos.coords.latitude, pos.coords.longitude], pos.coords.accuracy),
+                    err => console.warn('Geolocation watch error:', err && err.message),
+                    { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 }
+                );
+            }
+        })();
     </script>
 </body>
 </html>
