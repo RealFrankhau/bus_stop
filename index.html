@@ -134,6 +134,11 @@
             gap: 8px;
         }
 
+        .route-destination {
+            font-size: 14px;
+            color: #444;
+        }
+
         .eta-info {
             display: flex;
             align-items: center;
@@ -465,16 +470,21 @@
                             const routeGroups = {};
                             etaList.forEach(item => {
                                 const route = item.route;
-                                if (!routeGroups[route]) routeGroups[route] = [];
                                 const mins = getMinutesUntilETA(item.eta);
                                 if (mins !== null && mins >= 0) {
-                                    routeGroups[route].push(mins);
+                                    const destination = item.dest_tc || '';
+                                    if (!routeGroups[route]) routeGroups[route] = {};
+                                    if (!routeGroups[route][destination]) routeGroups[route][destination] = [];
+                                    routeGroups[route][destination].push(mins);
                                 }
                             });
                             
                             for (const route of routes) {
-                                if (routeGroups[route] && routeGroups[route].length > 0) {
-                                    routeEtaMap[route] = routeGroups[route].slice(0, 3);
+                                if (routeGroups[route]) {
+                                    routeEtaMap[route] = Object.entries(routeGroups[route]).map(([destination, mins]) => ({
+                                        destination,
+                                        minutes: mins.slice(0, 3)
+                                    }));
                                 }
                             }
                         } catch (e) {
@@ -489,15 +499,17 @@
                                 const data = await response.json();
                                 const etaList = data.data || [];
                                 
-                                const minsList = [];
+                                const destinationGroups = {};
                                 etaList.forEach(item => {
                                     const mins = getMinutesUntilETA(item.eta);
                                     if (mins !== null && mins >= 0) {
-                                        minsList.push(mins);
+                                        const destination = item.dest_tc || '';
+                                        if (!destinationGroups[destination]) destinationGroups[destination] = [];
+                                        destinationGroups[destination].push(mins);
                                     }
                                 });
                                 
-                                return minsList.length > 0 ? { route, minsList } : null;
+                                return Object.keys(destinationGroups).length > 0 ? { route, destinationGroups } : null;
                             } catch (e) {
                                 console.error(`Error fetching CTB ETA for stop ${s.stop_id} route ${route}:`, e);
                                 return null;
@@ -506,8 +518,11 @@
                         
                         const ctbResults = await Promise.all(ctbEtaPromises);
                         ctbResults.forEach(result => {
-                            if (result && result.minsList.length > 0) {
-                                routeEtaMap[result.route] = result.minsList.slice(0, 3);
+                            if (result) {
+                                routeEtaMap[result.route] = Object.entries(result.destinationGroups).map(([destination, mins]) => ({
+                                    destination,
+                                    minutes: mins.slice(0, 3)
+                                }));
                             }
                         });
                     }
@@ -551,20 +566,23 @@
                     if (routes.length > 0) {
                         html += `<div class="popup-routes">`;
                         routes.forEach(route => {
-                            const routeEta = stopEta[route] || [];
-                            const etaMins = routeEta.slice(0, 3);
-                            html += `<div class="route-row">`;
-                            html += `  <div class="route-info"><span class="route-tag ${getCompanyClass(co)}">${route}</span></div>`;
-                            html += `  <div class="eta-info">`;
-                            if (etaMins.length > 0) {
-                                etaMins.forEach(m => {
-                                    html += `<span class="eta-tag">${m}</span>`;
-                                });
-                            } else {
-                                html += `<span class="eta-tag eta-empty">--</span>`;
-                            }
-                            html += `  </div>`;
-                            html += `</div>`;
+                            const routeEtaGroups = stopEta[route] || [{ destination: '', minutes: [] }];
+                            routeEtaGroups.forEach(({ destination, minutes }) => {
+                                html += `<div class="route-row">`;
+                                html += `  <div class="route-info"><span class="route-tag ${getCompanyClass(co)}">${route}</span>`;
+                                if (destination) html += `<span class="route-destination">往: ${destination}</span>`;
+                                html += `</div>`;
+                                html += `  <div class="eta-info">`;
+                                if (minutes.length > 0) {
+                                    minutes.forEach(m => {
+                                        html += `<span class="eta-tag">${m}</span>`;
+                                    });
+                                } else {
+                                    html += `<span class="eta-tag eta-empty">--</span>`;
+                                }
+                                html += `  </div>`;
+                                html += `</div>`;
+                            });
                         });
                         html += `</div>`;
                     }
